@@ -47,4 +47,11 @@ if('approved' in b){if(b.approved&&!okc(s.lat,s.lng))bad('Salon has no valid coo
 if('active' in b)db.prepare('update salons set active=? where id=?').run(b.active?1:0,s.id);
 if(b.extend){const d=s.sub_until&&s.sub_until>today()?new Date(s.sub_until):new Date();d.setDate(d.getDate()+30);db.prepare('update salons set sub_until=? where id=?').run(d.toISOString().slice(0,10),s.id)}
 r.json({ok:1})}));
+const parseLL=u=>{const m=u.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/)||u.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)||u.match(/[?&](?:q|ll|query|destination)=(-?\d+\.\d+)(?:,|%2C)(-?\d+\.\d+)/);return m&&okc(+m[1],+m[2])?{lat:+m[1],lng:+m[2]}:null};
+const okHost=h=>/^(maps\.app\.goo\.gl|goo\.gl|(www\.)?google\.[a-z.]+|maps\.google\.[a-z.]+)$/.test(h);
+// Owner pastes a Google Maps link; only Google hosts are followed (no open redirects/SSRF)
+app.post('/api/resolve-map-link',auth('owner'),async(q,r)=>{try{let u=String(q.body.url||'').trim();
+for(let i=0;i<5;i++){const x=new URL(u);if(x.protocol!=='https:'||!okHost(x.hostname))break;const p=parseLL(decodeURIComponent(u));if(p)return r.json(p);
+const res=await fetch(u,{redirect:'manual',headers:{'User-Agent':'Mozilla/5.0'}});const loc=res.headers.get('location');if(!loc)break;u=new URL(loc,u).href}
+r.status(400).json({error:'Coordinates not found in this link. Open the exact place in Google Maps, tap Share, and paste that link.'})}catch{r.status(400).json({error:'Invalid link'})}});
 app.listen(process.env.PORT||3000,()=>console.log('Salon Connect running'));
